@@ -237,12 +237,14 @@ pub fn download(
     Ok(path)
 }
 
+#[cfg(any(windows, test))]
 fn ps_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
 /// 生成 PowerShell 助手脚本内容：等应用退出 → 静默安装（/DIR 固定当前目录）→
 /// 等安装进程结束（兼容 UAC 提权中转）→ 重启应用 → 清理安装包与脚本自身
+#[cfg(any(windows, test))]
 fn build_update_script(setup: &str, dir: &str, exe: &str) -> String {
     let setup_q = ps_quote(setup);
     let dir_q = ps_quote(dir);
@@ -273,6 +275,7 @@ fn build_update_script(setup: &str, dir: &str, exe: &str) -> String {
 /// 1. 写出 PowerShell 助手脚本（UTF-8 BOM，中文路径可安全表示）并分离启动；
 /// 2. 助手静默运行安装包，`/DIR` 显式指定为当前安装目录 → 位置不变；
 /// 3. 安装进程结束后重启应用，最后清理临时文件。用户取消 UAC 时也会重启旧版本。
+#[cfg(windows)]
 pub fn install_and_restart(app: &AppHandle, setup: &Path) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| format!("获取程序路径失败：{e}"))?;
     let dir = exe.parent().ok_or_else(|| "获取安装目录失败".to_string())?;
@@ -317,6 +320,13 @@ pub fn install_and_restart(app: &AppHandle, setup: &Path) -> Result<(), String> 
         handle.exit(0);
     });
     Ok(())
+}
+
+/// 安装更新并重启（非 Windows）：无静默安装支持，返回提示让用户手动下载
+#[cfg(not(windows))]
+pub fn install_and_restart(app: &AppHandle, setup: &Path) -> Result<(), String> {
+    let _ = (app, setup);
+    Err("当前平台不支持自动安装，请前往发布页手动下载".into())
 }
 
 #[cfg(test)]

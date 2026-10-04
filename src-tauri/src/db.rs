@@ -328,7 +328,7 @@ pub fn remove_folder(conn: &Connection, id: i64) {
     if let Some(p) = path {
         // 软删除该文件夹下的全部曲目（missing=1）：
         // 记录保留（喜欢/最近播放仍显示），文件夹重新添加后扫描复活
-        let sep = format!("{p}\\");
+        let sep = format!("{p}{}", std::path::MAIN_SEPARATOR);
         let _ = conn.execute(
             "UPDATE tracks SET missing = 1
              WHERE path = ?1 OR substr(path, 1, ?2) = ?3",

@@ -84,8 +84,10 @@ pub async fn open_folder(path: String) -> Result<(), String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = p;
-        return Err("当前平台不支持".into());
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开文件夹失败: {e}"))?;
     }
     Ok(())
 }

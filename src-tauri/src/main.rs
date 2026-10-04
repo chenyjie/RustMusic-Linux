@@ -89,6 +89,8 @@ fn main() {
             let handle = app.handle().clone();
             // 无框窗口关掉 DWM 边框后 Win11 会失去圆角，这里单独设回圆角
             //（DWMWA_WINDOW_CORNER_PREFERENCE = ROUND；Win10 无此属性，静默忽略）
+            // Linux 下无框窗口圆角由 GTK/合成器处理，此 Win32 块仅 Windows 编译
+            #[cfg(windows)]
             if let Some(main) = app.get_webview_window("main") {
                 use windows::Win32::Foundation::HWND;
                 use windows::Win32::Graphics::Dwm::{
@@ -173,7 +175,8 @@ fn main() {
             )?;
             let eng = Arc::new(eng);
 
-            // 恢复 WASAPI 独占模式设置（默认关闭）
+            // 恢复 WASAPI 独占模式设置（默认关闭）；非 Windows 无独占模式，保持关闭
+            #[cfg(windows)]
             eng.set_exclusive_enabled(
                 db::get_setting(&conn, "wasapi_exclusive").as_deref() == Some("true"),
             );

@@ -35,10 +35,13 @@ pub fn spawn(app: AppHandle) -> Sender<SmtcMsg> {
 }
 
 fn run(app: AppHandle, rx: Receiver<SmtcMsg>, tx: Sender<SmtcMsg>) {
+    #[cfg(windows)]
     let hwnd = app
         .get_webview_window("main")
         .and_then(|w| w.hwnd().ok())
         .map(|h| h.0 as *mut std::ffi::c_void);
+    #[cfg(not(windows))]
+    let hwnd: Option<*mut std::ffi::c_void> = None;
 
     let ev_app = app.clone();
     let handler = move |ev: MediaControlEvent| {

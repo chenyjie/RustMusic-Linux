@@ -47,6 +47,10 @@ pub(crate) fn suspend_main_webview(app: &AppHandle) {
         return; // 已挂起
     }
     drop(st);
+    // 仅 Windows 有 WebView2 TrySuspend；非 Windows（WebKitGTK）无挂起 API，
+    // 跳过实际挂起、仅置位状态机（恢复时仍补发 resync），渲染内存交给合成器。
+    #[cfg(windows)]
+    {
     let Some(win) = app.get_webview_window("main") else {
         return;
     };
@@ -84,10 +88,12 @@ pub(crate) fn suspend_main_webview(app: &AppHandle) {
     }) {
         eprintln!("[webview] with_webview 失败: {e}");
     }
+    }
 }
 /// 把本应用派生的全部 WebView2 子进程（浏览器/GPU/渲染/实用工具）的工作集
 /// 换出到待命列表。TrySuspend 冻结进程后 Windows 要几十秒才惰性裁剪完物理页，
 /// EmptyWorkingSet 立即完成这一步；恢复时页面从待命列表软错误换回，代价可忽略
+#[cfg(windows)]
 fn trim_webview_working_sets() {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{
@@ -164,6 +170,7 @@ pub(crate) fn resume_main_webview(app: &AppHandle, notify: bool) {
             return;
         }
     }
+    #[cfg(windows)]
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.with_webview(|webview| {
             use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_3;

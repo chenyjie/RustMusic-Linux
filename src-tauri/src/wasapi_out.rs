@@ -12,16 +12,20 @@ use rodio::Source;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc};
 
+#[cfg(windows)]
 use wasapi::{
     calculate_period_100ns, initialize_mta, BufferFlags, DeviceCollection, Direction, SampleType,
     ShareMode, WaveFormat,
 };
+#[cfg(windows)]
 use windows51::core::Error as WinError;
 
+#[cfg(windows)]
 /// AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED：周期未按驱动要求对齐，
 /// 触发文档规定的重算流程（失败后 GetBufferSize 返回对齐缓冲值）。
 const AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED: u32 = 0x8889_0019;
 
+#[cfg(windows)]
 /// 把 wasapi/windows 错误转成安全描述。
 /// 切勿对这类错误调用 Display/message()：AUDCLNT 错误码没有系统消息模板，
 /// FormatMessageW 返回空指针会触发 UB 检查直接闪退（0x01.8 之前的闪退根因）。
@@ -61,6 +65,8 @@ pub fn wait_session_exit(ctl: &ExclusiveCtl, timeout_ms: u64) -> bool {
 }
 
 /// 会话音频参数（采样源与设备无关的部分由引擎传入）
+// 非 Windows 走桩不读这些字段，allow 以免「字段从未读取」告警污染构建
+#[allow(dead_code)]
 pub struct ExclusiveParams {
     pub device_pref: Option<String>,
     pub channels: usize,
@@ -69,9 +75,24 @@ pub struct ExclusiveParams {
     pub speed_bits: Arc<AtomicU32>,
 }
 
+/// 启动独占播放会话（非 Windows）：独占模式仅 Windows 支持，直接返回 Err，
+/// 由引擎走既有「独占失败 → 回退共享」通道继续播放，不破坏主链路。
+#[cfg(not(windows))]
+pub fn spawn_exclusive_session<S>(
+    src: S,
+    params: ExclusiveParams,
+) -> Result<(ExclusiveCtl, mpsc::Receiver<Result<(), String>>), String>
+where
+    S: Source + Send + 'static,
+{
+    let _ = (src, params);
+    Err("当前平台不支持独占输出模式".into())
+}
+
 /// 启动独占播放会话。返回控制句柄与初始化结果接收端：
 /// 会话线程完成格式协商与设备初始化后回传 Ok(()) 或失败原因，
 /// 调用方应等待该结果，失败时回退共享模式（采样源已被线程取走，需重新解码）。
+#[cfg(windows)]
 pub fn spawn_exclusive_session<S>(
     src: S,
     params: ExclusiveParams,
@@ -103,12 +124,14 @@ where
 }
 
 /// 采样格式（由协商成功的 WaveFormat 解出）
+#[cfg(windows)]
 #[derive(Clone, Copy)]
 struct FmtSpec {
     kind: SampleKind,
     bytes_per_sample: usize,
 }
 
+#[cfg(windows)]
 #[derive(Clone, Copy, PartialEq)]
 enum SampleKind {
     I16,
@@ -120,6 +143,7 @@ enum SampleKind {
 
 /// 线性重采样器：step = 每个输出帧消耗的输入帧数
 /// （= 速率比 × 倍速）。step == 1 时逐帧直通（位一致）。
+#[cfg(windows)]
 struct LinearResampler {
     step: f64,
     pos: f64,
@@ -128,6 +152,7 @@ struct LinearResampler {
     done: bool,
 }
 
+#[cfg(windows)]
 impl LinearResampler {
     /// 从源拉取一帧（ch 个采样）；源耗尽返回 None
     fn pull(src: &mut dyn Iterator<Item = f32>, ch: usize) -> Option<Vec<f32>> {
@@ -179,6 +204,7 @@ impl LinearResampler {
 }
 
 /// 追加一帧采样到字节缓冲（按设备格式转换）
+#[cfg(windows)]
 fn append_frame(buf: &mut Vec<u8>, frame: &[f32], fmt: &FmtSpec, volume: f32) {
     for &s in frame {
         let s = if (volume - 1.0).abs() < f32::EPSILON {
@@ -212,10 +238,12 @@ fn append_frame(buf: &mut Vec<u8>, frame: &[f32], fmt: &FmtSpec, volume: f32) {
     }
 }
 
+#[cfg(windows)]
 fn silence_bytes(frames: usize, blockalign: usize) -> Vec<u8> {
     vec![0u8; frames * blockalign]
 }
 
+#[cfg(windows)]
 fn silent_flags() -> BufferFlags {
     BufferFlags {
         data_discontinuity: false,
@@ -224,6 +252,7 @@ fn silent_flags() -> BufferFlags {
     }
 }
 
+#[cfg(windows)]
 /// 选定设备：优先用户偏好（按友好名匹配），否则系统默认
 fn pick_device(pref: Option<&str>) -> Result<wasapi::Device, String> {
     if let Some(name) = pref {
@@ -238,6 +267,7 @@ fn pick_device(pref: Option<&str>) -> Result<wasapi::Device, String> {
         .map_err(|e| wasapi_err("没有可用的音频输出设备", e.as_ref()))
 }
 
+#[cfg(windows)]
 /// 关键 HRESULT 的可行动提示
 fn exclusive_hint(code: u32) -> Option<&'static str> {
     match code {
@@ -255,6 +285,7 @@ fn exclusive_hint(code: u32) -> Option<&'static str> {
     }
 }
 
+#[cfg(windows)]
 fn wasapi_err_hint(what: &str, e: &(dyn std::error::Error + 'static)) -> String {
     let code = e
         .downcast_ref::<WinError>()
@@ -270,6 +301,7 @@ fn wasapi_err_hint(what: &str, e: &(dyn std::error::Error + 'static)) -> String 
 /// 文档恢复流程：失败态客户端的 GetBufferSize 返回向上对齐的缓冲帧数，
 /// 换算成 100ns 周期后先同客户端重试，仍失败则按文档释放旧客户端、
 /// 换新客户端重试一次。两种结局都把可继续使用的客户端还给调用方。
+#[cfg(windows)]
 fn try_initialize(
     device: &wasapi::Device,
     mut client: wasapi::AudioClient,
@@ -342,6 +374,7 @@ fn try_initialize(
 }
 
 /// 会话主流程：设备/格式协商 → 回传初始化结果 → 事件驱动喂采样 → 源耗尽退出
+#[cfg(windows)]
 fn run_session<S>(
     mut src: S,
     params: ExclusiveParams,
@@ -566,7 +599,7 @@ where
     init_result
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 

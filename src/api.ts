@@ -336,7 +336,7 @@ export const api = {
     invoke<{ bytes: number; files: number }>("cache_stats"),
   setCacheLimit: (bytes: number) =>
     invoke<void>("set_cache_limit", { bytes }),
-  getAppInfo: () => invoke<{ version: string; dataDir: string }>("get_app_info"),
+  getAppInfo: () => invoke<{ version: string; dataDir: string; os: string }>("get_app_info"),
   desktopLyricsOpen: () => invoke<void>("desktop_lyrics_open"),
   desktopLyricsClose: () => invoke<void>("desktop_lyrics_close"),
   desktopLyricsUnlock: () => invoke<void>("desktop_lyrics_unlock"),

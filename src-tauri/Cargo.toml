@@ -38,16 +38,22 @@ sha2 = "0.10"
 hex = "0.4"
 num-bigint = "0.4"
 rand = "0.8"
-wasapi = "0.14"
-windows51 = { package = "windows", version = "0.51", default-features = false }
 qrcode = { version = "0.14", default-features = false, features = ["image"] }
 filetime = "0.2"
-keyring = { version = "~3.6", features = ["windows-native"] }
 
 [target.'cfg(windows)'.dependencies]
 # WebView2 TrySuspend：托盘隐藏时挂起渲染进程回收内存
 webview2-com = "0.38"
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading", "Win32_System_ProcessStatus"] }
+# WASAPI 独占输出（Windows 专属）；Linux 走 wasapi_out.rs 的桩，回退共享播放
+wasapi = "0.14"
+windows51 = { package = "windows", version = "0.51", default-features = false }
+# 凭据存储：Windows 走系统凭据管理器
+keyring = { version = "~3.6", features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# 凭据存储：Linux 走 Secret Service（GNOME Keyring / KWallet），持久化到系统密钥环
+keyring = { version = "~3.6", features = ["sync-secret-service", "crypto-rust"] }
 
 [dev-dependencies]
 

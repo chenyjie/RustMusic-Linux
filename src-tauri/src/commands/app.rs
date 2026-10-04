@@ -97,6 +97,7 @@ pub async fn get_app_info(
     Ok(json!({
         "version": app.package_info().version.to_string(),
         "dataDir": state.app_data.to_string_lossy(),
+        "os": std::env::consts::OS,
     }))
 }
 // ---------- 封面取色（服务端，绕过 QQ 封面域无 CORS 的限制） ----------
@@ -335,12 +336,22 @@ pub async fn open_url(url: String) -> Result<(), String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("不支持的链接".into());
     }
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    std::process::Command::new("cmd")
-        .args(["/C", "start", "", &url])
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| format!("打开链接失败：{e}"))?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("打开链接失败：{e}"))?;
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("打开链接失败：{e}"))?;
+    }
     Ok(())
 }

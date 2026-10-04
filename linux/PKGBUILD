@@ -1,0 +1,52 @@
+# Maintainer: chen
+# RustMusic 的 Linux 移植版 —— Arch / CachyOS 的 pacman 打包脚本。
+# 从源码构建：npm 构建前端 + cargo 构建 Tauri 后端，产出 rustmusic 二进制后安装。
+# 用法：cd linux && makepkg -si   （需先装好 makedepends）
+
+pkgname=rustmusic
+pkgver=0.5.3
+pkgrel=1
+pkgdesc="RustMusic 的 Linux 移植版：Rust + Tauri 2 + React 桌面音乐播放器"
+arch=('x86_64')
+url="https://github.com/chenyjie/RustMusic-Linux"
+license=('Apache-2.0')
+
+depends=(
+  'alsa-lib' 'cairo' 'dbus' 'gdk-pixbuf2' 'glib2' 'gcc-libs' 'glibc'
+  'gtk3' 'libayatana-appindicator' 'libsoup3' 'webkit2gtk-4.1'
+)
+makedepends=(
+  'cargo' 'git' 'libxdo' 'nodejs' 'npm' 'pkgconf' 'rust'
+)
+
+# 从本仓库源码构建
+source=("git+https://github.com/chenyjie/RustMusic-Linux.git")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$srcdir/RustMusic-Linux"
+  npm ci
+}
+
+build() {
+  cd "$srcdir/RustMusic-Linux"
+  npm run tauri build -- --no-bundle
+}
+
+package() {
+  cd "$srcdir/RustMusic-Linux"
+
+  # 主程序
+  install -Dm755 src-tauri/target/release/rustmusic "$pkgdir/usr/bin/rustmusic"
+
+  # 桌面入口（文件名对齐 Tauri identifier，Wayland 下窗口图标正确匹配）
+  install -Dm644 linux/com.rustmusic.app.desktop \
+    "$pkgdir/usr/share/applications/com.rustmusic.app.desktop"
+
+  # 图标，多尺寸
+  install -Dm644 src-tauri/icons/32x32.png      "$pkgdir/usr/share/icons/hicolor/32x32/apps/rustmusic.png"
+  install -Dm644 src-tauri/icons/64x64.png      "$pkgdir/usr/share/icons/hicolor/64x64/apps/rustmusic.png"
+  install -Dm644 src-tauri/icons/128x128.png    "$pkgdir/usr/share/icons/hicolor/128x128/apps/rustmusic.png"
+  install -Dm644 src-tauri/icons/128x128@2x.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/rustmusic.png"
+  install -Dm644 src-tauri/icons/icon.png       "$pkgdir/usr/share/icons/hicolor/512x512/apps/rustmusic.png"
+}

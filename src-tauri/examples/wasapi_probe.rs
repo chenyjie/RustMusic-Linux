@@ -1,6 +1,13 @@
 //! WASAPI 独占模式探测：用 wasapi crate 官方示例的模式实测本机默认设备
+#[cfg(not(windows))]
+fn main() {
+    eprintln!("WASAPI 独占探测仅支持 Windows");
+}
+
+#[cfg(windows)]
 use wasapi::*;
 
+#[cfg(windows)]
 fn main() {
     initialize_mta().unwrap();
 

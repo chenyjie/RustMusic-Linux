@@ -1,10 +1,23 @@
-# RustMusic 🎵
+# RustMusic · Linux 适配版
 
-一款用 **Rust + Tauri 2 + React** 打造的高性能、精美界面的桌面音乐播放器。
+[RustMusic](https://github.com/LingyunStudio/RustMusic) 的 Linux 移植版：一款用 **Rust + Tauri 2 + React** 打造的高性能、精美界面的桌面音乐播放器。
 
-![tech](https://img.shields.io/badge/Rust-1.77+-DEA584) ![tech](https://img.shields.io/badge/Tauri-2-24C8D8) ![tech](https://img.shields.io/badge/React-18-61DAFB) ![platform](https://img.shields.io/badge/platform-Windows-blue)
+![tech](https://img.shields.io/badge/Rust-1.77+-DEA584) ![tech](https://img.shields.io/badge/Tauri-2-24C8D8) ![tech](https://img.shields.io/badge/React-18-61DAFB) ![platform](https://img.shields.io/badge/platform-Linux-FCC624) ![platform](https://img.shields.io/badge/platform-Windows-blue)
 
 <img src="https://cdn.jsdelivr.net/gh/LingyunStudio/LingyunImg@master/2026/09/upgit_20260929_1790619273.png" alt="image-20260929021433117" style="zoom:67%;" />
+
+## 🐧 Linux 适配说明
+
+本仓库在上游 RustMusic 基础上完成 Linux 移植（已在 Arch / CachyOS + Hyprland 下验证）：
+
+- **全链路可用**：本地播放（rodio / cpal → ALSA / PipeWire）、在线音源、逐字歌词、资料库扫描、播放队列、均衡器、系统托盘、MPRIS 媒体控制、输出设备切换，均已跑通。
+- **平台差异（Linux 下优雅降级）**：
+  - **WASAPI 独占模式**为 Windows 专属；Linux 设置页自动隐藏（ALSA / PipeWire 无对等独占通道），开启尝试会得到友好提示。
+  - **凭据存储**：Windows 用「凭据管理器」，Linux 用 **Secret Service**（GNOME Keyring / KWallet），Navidrome 密码同样加密存于本机。
+  - **系统媒体控制**：Windows 走 SMTC，Linux 走 **MPRIS**（D-Bus），媒体键与桌面媒体浮窗通用。
+  - **自动更新**：Windows 支持应用内静默安装；Linux 保留「检查新版本 + 下载」，安装需手动（发布页或包管理器）。
+  - **系统托盘**：需桌面环境提供 StatusNotifier 宿主（如 waybar / GNOME AppIndicator 扩展）方可显示图标。
+- **构建与打包**：见下文「开发与构建」；`linux/` 下附 PKGBUILD，可一键打成 pacman 包安装。
 
 ## ✨ 功能特性
 
@@ -35,10 +48,10 @@
 - 全屏播放页逐行滚动、当前行高亮、点击歌词跳转播放位置
 - **桌面歌词**：独立透明悬浮窗口，逐字 / 逐行着色（已唱 / 未唱 / 下一句可自定义配色），支持拖动、缩放、置顶、鼠标穿透锁定（主窗口 L 键开关 / 解锁）
 
-### 桌面集成（Windows）
-- **系统媒体控制（SMTC）**：键盘媒体键、系统媒体浮窗显示曲名 / 艺术家 / 封面 / 进度
+### 桌面集成
+- **系统媒体控制（SMTC / MPRIS）**：键盘媒体键、系统媒体浮窗显示曲名 / 艺术家 / 封面 / 进度
 - **系统托盘**：托盘菜单播放 / 暂停 / 切歌、左键回到主界面；关窗可最小化到托盘
-- **自动更新**：检查 GitHub Release 新版本，应用内下载（带进度、SHA-256 校验）并静默安装重启
+- **自动更新**：检查 GitHub Release 新版本，应用内下载（带进度、SHA-256 校验）；静默安装重启为 Windows 专属
 - **窗口**：无边框自绘标题栏、拖拽文件 / 文件夹直接导入资料库
 
 ### 界面
@@ -94,21 +107,47 @@
         └── updater.rs       # GitHub Release 自动更新（下载 + SHA-256 校验 + 静默安装）
 ```
 
-**选型说明**：Tauri 2 = Rust 高性能后端 + Web 渲染的精美界面；框架天然支持 Windows / macOS / Linux（当前只做 Windows 构建），未来可低成本扩展。
+**选型说明**：Tauri 2 = Rust 高性能后端 + Web 渲染的精美界面；框架天然支持 Windows / macOS / Linux。本仓库在上游 Windows 版基础上补齐了 Linux 构建与运行。
 
 ## 📦 下载安装
 
-前往 [Releases](https://github.com/LingyunStudio/RustMusic/releases/latest) 下载 `RustMusic_<版本>_x64-setup.exe`（Windows 10/11 x64，Inno Setup 安装器）。已安装的旧版本会通过应用内自动更新提示升级（下载带 SHA-256 校验，静默安装后自动重启）。
+**Linux（本仓库）**：用 `linux/PKGBUILD` 打成 pacman 包安装（Arch / CachyOS）：
+
+```bash
+# 从源码构建并安装（需已装构建依赖，见「开发与构建」）
+cd linux && makepkg -si
+
+# 或直接安装已打好的包
+sudo pacman -U rustmusic-<版本>-x86_64.pkg.tar.zst
+```
+
+**Windows**：前往 [Releases](https://github.com/LingyunStudio/RustMusic/releases/latest) 下载 `RustMusic_<版本>_x64-setup.exe`（Windows 10/11 x64，Inno Setup 安装器）；已安装的旧版本可应用内自动更新升级。
 
 ## 🚀 开发与构建
 
 ```bash
 npm install          # 安装前端依赖
 npm run tauri dev    # 开发模式（热更新）
-npm run tauri build  # 构建发布版可执行文件（前端资源内嵌进 exe，无打包步骤）
+npm run tauri build  # 构建发布版可执行文件（前端资源内嵌，无额外打包步骤）
 ```
 
-要求：Rust (MSVC) 1.77+、Node 18+、WebView2 Runtime（Win10/11 通常自带）。
+**要求**：
+
+- **Windows**：Rust (MSVC) 1.77+、Node 18+、WebView2 Runtime（Win10/11 通常自带）
+- **Linux**：Rust 1.77+、Node 18+，以及下列系统开发库
+
+Linux 系统开发库：
+
+```bash
+# Debian / Ubuntu
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+  libasound2-dev libdbus-1-dev
+
+# Arch / CachyOS
+sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 libayatana-appindicator \
+  libxdo alsa-lib dbus openssl librsvg
+```
 
 其他：
 
@@ -127,7 +166,7 @@ npm run tauri build  # 构建发布版可执行文件（前端资源内嵌进 ex
 - [ ] HLS / m3u8 流媒体支持
 - [ ] 歌词翻译 / 双语歌词
 - [ ] 音频转码 / 标签批量编辑
-- [ ] macOS / Linux 构建
+- [ ] macOS 构建（Linux 已在本仓库完成）
 
 ## 📄 许可证
 
